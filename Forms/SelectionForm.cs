@@ -113,7 +113,14 @@ namespace ShareShot.Forms
 
                 if (IsValidSelection())
                 {
-                    ScreenshotTaken?.Invoke(selectionRect);
+                    // Adjust the selection rectangle to exclude the border
+                    var adjustedRect = new Rectangle(
+                        selectionRect.X + 2,
+                        selectionRect.Y + 2,
+                        selectionRect.Width - 4,
+                        selectionRect.Height - 4
+                    );
+                    ScreenshotTaken?.Invoke(adjustedRect);
                 }
 
                 Close();
