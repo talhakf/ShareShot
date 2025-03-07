@@ -7,15 +7,16 @@ namespace ShareShot.Forms
 {
     public class SelectionForm : Form
     {
-        private readonly Bitmap screenCapture;
         private readonly Rectangle totalBounds;
+        private readonly Bitmap screenCapture;
         private Point startPoint;
         private Rectangle selectionRect;
         private bool isSelecting;
         private bool isDrawing;
-        private Bitmap? result;
+        private Bitmap? bufferBitmap;
+        private Graphics? bufferGraphics;
 
-        public event Action<Bitmap>? ScreenshotTaken;
+        public event Action<Rectangle>? ScreenshotTaken;
 
         public SelectionForm(Bitmap screenCapture, Rectangle totalBounds)
         {
@@ -23,6 +24,7 @@ namespace ShareShot.Forms
             this.totalBounds = totalBounds;
             ConfigureForm();
             SetupEventHandlers();
+            InitializeBuffer();
         }
 
         private void ConfigureForm()
@@ -31,11 +33,22 @@ namespace ShareShot.Forms
             WindowState = FormWindowState.Normal;
             TopMost = true;
             BackColor = Color.Black;
-            Opacity = 0.5;
+            Opacity = 1.0;
             Cursor = Cursors.Cross;
             KeyPreview = true;
             Bounds = totalBounds;
             StartPosition = FormStartPosition.Manual;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | 
+                    ControlStyles.AllPaintingInWmPaint | 
+                    ControlStyles.UserPaint, true);
+        }
+
+        private void InitializeBuffer()
+        {
+            bufferBitmap = new Bitmap(Width, Height);
+            bufferGraphics = Graphics.FromImage(bufferBitmap);
+            bufferGraphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            bufferGraphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
         }
 
         private void SetupEventHandlers()
@@ -51,12 +64,32 @@ namespace ShareShot.Forms
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnPaint(e);
+            if (bufferGraphics == null || bufferBitmap == null) return;
+
+            // Clear the buffer
+            bufferGraphics.Clear(Color.Black);
+            
+            // Draw the captured screen
+            bufferGraphics.DrawImage(screenCapture, 0, 0);
+            
+            // Draw semi-transparent overlay
+            using var brush = new SolidBrush(Color.FromArgb(128, 0, 0, 0));
+            bufferGraphics.FillRectangle(brush, 0, 0, Width, Height);
+
             if (isDrawing)
             {
+                // Clear the selection area to show the original content
+                bufferGraphics.SetClip(selectionRect);
+                bufferGraphics.DrawImage(screenCapture, 0, 0);
+                bufferGraphics.ResetClip();
+
+                // Draw selection border
                 using var pen = new Pen(Color.Red, 2);
-                e.Graphics.DrawRectangle(pen, selectionRect);
+                bufferGraphics.DrawRectangle(pen, selectionRect);
             }
+
+            // Draw the buffer to the screen
+            e.Graphics.DrawImage(bufferBitmap, 0, 0);
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -98,7 +131,7 @@ namespace ShareShot.Forms
 
                 if (IsValidSelection())
                 {
-                    CaptureSelectedArea();
+                    ScreenshotTaken?.Invoke(selectionRect);
                 }
 
                 Close();
@@ -111,15 +144,14 @@ namespace ShareShot.Forms
                    selectionRect.Height > Constants.Screenshot.MinimumSelectionSize;
         }
 
-        private void CaptureSelectedArea()
+        protected override void Dispose(bool disposing)
         {
-            result = new Bitmap(selectionRect.Width, selectionRect.Height);
-            using var g = Graphics.FromImage(result);
-            g.DrawImage(screenCapture,
-                new Rectangle(0, 0, selectionRect.Width, selectionRect.Height),
-                new Rectangle(selectionRect.X, selectionRect.Y, selectionRect.Width, selectionRect.Height),
-                GraphicsUnit.Pixel);
-            ScreenshotTaken?.Invoke(result);
+            if (disposing)
+            {
+                bufferGraphics?.Dispose();
+                bufferBitmap?.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 } 

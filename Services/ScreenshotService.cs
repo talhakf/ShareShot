@@ -11,7 +11,6 @@ namespace ShareShot.Services
     public class ScreenshotService : IScreenshotService
     {
         private readonly NotifyIcon? trayIcon;
-        private Bitmap? screenCapture;
         private SelectionForm? selectionForm;
         private bool isCapturing;
 
@@ -28,8 +27,8 @@ namespace ShareShot.Services
             try
             {
                 var bounds = GetTotalScreenBounds();
-                screenCapture = CaptureAllScreens(bounds);
-                ShowSelectionForm(bounds);
+                var screenCapture = CaptureAllScreens(bounds);
+                ShowSelectionForm(screenCapture, bounds);
             }
             catch (Exception ex)
             {
@@ -73,19 +72,27 @@ namespace ShareShot.Services
                 screen.Bounds.Y - totalBounds.Y);
         }
 
-        private void ShowSelectionForm(Rectangle bounds)
+        private void ShowSelectionForm(Bitmap screenCapture, Rectangle bounds)
         {
-            selectionForm = new SelectionForm(screenCapture!, bounds);
+            selectionForm = new SelectionForm(screenCapture, bounds);
             selectionForm.ScreenshotTaken += SelectionForm_ScreenshotTaken;
+            selectionForm.FormClosed += (_, _) => isCapturing = false;
             selectionForm.Show();
         }
 
-        private void SelectionForm_ScreenshotTaken(Bitmap screenshot)
+        private void SelectionForm_ScreenshotTaken(Rectangle selectionRect)
         {
-            if (screenshot != null)
-            {
-                SaveScreenshot(screenshot);
-            }
+            var bounds = GetTotalScreenBounds();
+            var screenCapture = CaptureAllScreens(bounds);
+            
+            var result = new Bitmap(selectionRect.Width, selectionRect.Height);
+            using var g = Graphics.FromImage(result);
+            g.DrawImage(screenCapture,
+                new Rectangle(0, 0, selectionRect.Width, selectionRect.Height),
+                selectionRect,
+                GraphicsUnit.Pixel);
+
+            SaveScreenshot(result);
             isCapturing = false;
         }
 
