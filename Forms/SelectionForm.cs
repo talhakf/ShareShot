@@ -13,8 +13,6 @@ namespace ShareShot.Forms
         private Rectangle selectionRect;
         private bool isSelecting;
         private bool isDrawing;
-        private Bitmap? bufferBitmap;
-        private Graphics? bufferGraphics;
 
         public event Action<Rectangle>? ScreenshotTaken;
 
@@ -24,7 +22,6 @@ namespace ShareShot.Forms
             this.totalBounds = totalBounds;
             ConfigureForm();
             SetupEventHandlers();
-            InitializeBuffer();
         }
 
         private void ConfigureForm()
@@ -43,14 +40,6 @@ namespace ShareShot.Forms
                     ControlStyles.UserPaint, true);
         }
 
-        private void InitializeBuffer()
-        {
-            bufferBitmap = new Bitmap(Width, Height);
-            bufferGraphics = Graphics.FromImage(bufferBitmap);
-            bufferGraphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-            bufferGraphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-        }
-
         private void SetupEventHandlers()
         {
             KeyDown += (_, e) =>
@@ -62,34 +51,27 @@ namespace ShareShot.Forms
             };
         }
 
+        // draw captured screen and selection rect
         protected override void OnPaint(PaintEventArgs e)
         {
-            if (bufferGraphics == null || bufferBitmap == null) return;
-
-            // Clear the buffer
-            bufferGraphics.Clear(Color.Black);
-            
             // Draw the captured screen
-            bufferGraphics.DrawImage(screenCapture, 0, 0);
+            e.Graphics.DrawImage(screenCapture, 0, 0);
             
             // Draw semi-transparent overlay
             using var brush = new SolidBrush(Color.FromArgb(128, 0, 0, 0));
-            bufferGraphics.FillRectangle(brush, 0, 0, Width, Height);
+            e.Graphics.FillRectangle(brush, 0, 0, Width, Height);
 
             if (isDrawing)
             {
                 // Clear the selection area to show the original content
-                bufferGraphics.SetClip(selectionRect);
-                bufferGraphics.DrawImage(screenCapture, 0, 0);
-                bufferGraphics.ResetClip();
+                e.Graphics.SetClip(selectionRect);
+                e.Graphics.DrawImage(screenCapture, 0, 0);
+                e.Graphics.ResetClip();
 
                 // Draw selection border
                 using var pen = new Pen(Color.Red, 2);
-                bufferGraphics.DrawRectangle(pen, selectionRect);
+                e.Graphics.DrawRectangle(pen, selectionRect);
             }
-
-            // Draw the buffer to the screen
-            e.Graphics.DrawImage(bufferBitmap, 0, 0);
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -142,16 +124,6 @@ namespace ShareShot.Forms
         {
             return selectionRect.Width > Constants.Screenshot.MinimumSelectionSize && 
                    selectionRect.Height > Constants.Screenshot.MinimumSelectionSize;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                bufferGraphics?.Dispose();
-                bufferBitmap?.Dispose();
-            }
-            base.Dispose(disposing);
         }
     }
 } 
