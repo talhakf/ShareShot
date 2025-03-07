@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  PROJECT_PATH: ShareShot.csproj
+  DOTNET_VERSION: '9.0.x'
+  DOTNET_CONFIGURATION: 'Release'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.PROJECT_PATH }}
+
+    - name: Build
+      run: dotnet build ${{ env.PROJECT_PATH }} --configuration ${{ env.DOTNET_CONFIGURATION }} --no-restore
+
+    - name: Publish Windows x64
+      run: dotnet publish ${{ env.PROJECT_PATH }} -c ${{ env.DOTNET_CONFIGURATION }} -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
+
+    - name: Create ZIP archive
+      run: |
+        cd publish/win-x64
+        7z a -tzip ../../ShareShot-win-x64.zip *
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ShareShot-win-x64.zip
+        name: ShareShot ${{ github.ref_name }}
+        body: |
+          ShareShot Release ${{ github.ref_name }}
+          
+          ## System Requirements
+          - Windows 10 or later
+          - x64 architecture
+          
+          ## Installation
+          1. Download the ZIP file
+          2. Extract to your desired location
+          3. Run ShareShot.exe
+          
+          ## Changes
+          For detailed changes, please see the commit history.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using ShareShot.Core;
+using ShareShot.Services;
 
 namespace ShareShot.Forms
 {
@@ -13,6 +14,7 @@ namespace ShareShot.Forms
         private Rectangle selectionRect;
         private bool isSelecting;
         private bool isDrawing;
+        private Bitmap? selectedScreenshot;
 
         public event Action<Rectangle>? ScreenshotTaken;
 
@@ -123,17 +125,53 @@ namespace ShareShot.Forms
 
                 if (IsValidSelection())
                 {
-                    // Adjust the selection rectangle to exclude the border
                     var adjustedRect = new Rectangle(
                         selectionRect.X + 2,
                         selectionRect.Y + 2,
                         selectionRect.Width - 4,
                         selectionRect.Height - 4
                     );
-                    ScreenshotTaken?.Invoke(adjustedRect);
-                }
 
-                Close();
+                    selectedScreenshot = new Bitmap(adjustedRect.Width, adjustedRect.Height);
+                    using var g = Graphics.FromImage(selectedScreenshot);
+                    g.DrawImage(screenCapture,
+                        new Rectangle(0, 0, adjustedRect.Width, adjustedRect.Height),
+                        adjustedRect,
+                        GraphicsUnit.Pixel);
+
+                    try
+                    {
+                        Clipboard.SetImage(selectedScreenshot);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Failed to copy screenshot to clipboard: {ex.Message}", 
+                            "Copy Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+
+                    ScreenshotTaken?.Invoke(adjustedRect);
+                    var screenshot = selectedScreenshot;
+                    Close();
+
+                    if (screenshot != null)
+                    {
+                        try
+                        {
+                            var clientId = ConfigurationService.Instance.GetImgurClientId();
+                            var optionsForm = new ScreenshotOptionsForm(screenshot, clientId);
+                            optionsForm.ShowDialog();
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Error showing options: {ex.Message}", "Error", 
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                }
+                else
+                {
+                    Close();
+                }
             }
         }
 
