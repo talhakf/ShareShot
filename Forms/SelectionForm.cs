@@ -24,6 +24,16 @@ namespace ShareShot.Forms
             SetupEventHandlers();
         }
 
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= 0x80;
+                return cp;
+            }
+        }
+
         private void ConfigureForm()
         {
             FormBorderStyle = FormBorderStyle.None;
